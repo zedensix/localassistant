@@ -19,6 +19,10 @@ register on the fly; either way you approve each one.
 
 - See the floors, rooms and outside spaces, and every device with its room, last
   reading and whether it answers.
+- Read the electricity used over any span, the same numbers as **Energy**: the
+  house per hour, day or month against the span before, the averages per weekday
+  and hour, and each metered appliance it may see. "Which days made my
+  consumption go up?" gets the days and the figures.
 - Open, close, stop or move a blind, or every blind in a room at once.
 - Turn a heat pump on or off, set its mode and temperature, boost the hot water.
 - Pause, resume or stop a print, and set the printer's light and speed. It's
@@ -39,10 +43,10 @@ printer's access code or the MELCloud password.
 
 **Assistant**, in the sidebar (under **More** on a phone), is a chat built into
 LocalAssistant: ask what's on, who's home, or tell it to close the blinds or set
-a scene. It reads the house and drives devices as the person asking, and says
-what it did under its answer. It also writes routines and scenes ("turn the
-porch light on at sunset on weekdays"), turns them on or off, runs and deletes
-them.
+a scene, or which days used the most electricity. It reads the house and its
+energy history and drives devices as the person asking, and says what it did
+under its answer. It also writes routines and scenes ("turn the porch light on
+at sunset on weekdays"), turns them on or off, runs and deletes them.
 
 It runs on Claude through Anthropic's API, so an admin turns it on with an API
 key: make one at console.anthropic.com, then **Admin**, **AI**, **Claude API

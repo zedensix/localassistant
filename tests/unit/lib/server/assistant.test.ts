@@ -122,6 +122,7 @@ describe("the assistant", () => {
 			requests[0]?.tools?.map((tool) => (tool as { name: string }).name),
 		).toEqual([
 			"get_house",
+			"get_energy",
 			"control_device",
 			"set_scene",
 			"list_routines",
@@ -175,6 +176,25 @@ describe("the assistant", () => {
 			(await assistant.reply(HomeDTO.first(), [{ role: "user", text: "x" }]))
 				.text,
 		).toBe("Done.");
+	});
+
+	test("reads the electricity use over a span, and refuses a bad one", async () => {
+		const home = HomeDTO.first();
+		const report = JSON.parse(
+			(await assistant.run(home, "get_energy", { month: "2026-10" })).content,
+		) as { range: { from: string; to: string; unit: string } };
+		expect(report.range).toMatchObject({
+			from: "2026-10-01",
+			to: "2026-10-31",
+			unit: "day",
+		});
+		expect(
+			JSON.parse((await assistant.run(home, "get_energy", {})).content).range
+				.key,
+		).toBe("this-month");
+		expect(
+			await assistant.run(home, "get_energy", { from: "yesterday" }),
+		).toEqual({ content: "That span isn't valid.", error: true });
 	});
 
 	test("its tools refuse hidden devices, bad commands and gone scenes", async () => {

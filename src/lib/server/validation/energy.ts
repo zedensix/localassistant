@@ -32,3 +32,17 @@ export const energyRangeSchema = z
 				energyPresets.find((preset) => preset === query.range) ?? "this-month",
 		};
 	});
+
+export const energyQuestionSchema = z.object({
+	preset: z
+		.enum(energyPresets)
+		.optional()
+		.describe("A span ending today; this-month when nothing else is given."),
+	month: z
+		.string()
+		.regex(/^\d{4}-(0[1-9]|1[0-2])$/)
+		.optional()
+		.describe("One calendar month, YYYY-MM, by day."),
+	from: day.optional().describe("First day, YYYY-MM-DD, given with to."),
+	to: day.optional().describe("Last day, YYYY-MM-DD, given with from."),
+});

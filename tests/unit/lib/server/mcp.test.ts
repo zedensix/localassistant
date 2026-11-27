@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, spyOn, test } from "bun:test";
 import { createMcpHandler } from "@modelcontextprotocol/server";
 
 import { DeviceDTO } from "#lib/dto/device.js";
+import { EnergyReadingDTO } from "#lib/dto/energy-reading.js";
 import { FloorDTO } from "#lib/dto/floor.js";
 import { JobDTO } from "#lib/dto/job.js";
 import { RoomDTO } from "#lib/dto/room.js";
@@ -71,6 +72,7 @@ describe("MCP tools", () => {
 			"delete_routine",
 			"delete_scene",
 			"get_device",
+			"get_energy",
 			"list_homes",
 			"list_house",
 			"list_routines",
@@ -82,6 +84,58 @@ describe("MCP tools", () => {
 			"set_routine_enabled",
 			"set_scene",
 		]);
+	});
+
+	test("get_energy gives the Linky's days and the appliances AI may see", async () => {
+		const meter = DeviceDTO.upsert({
+			kind: "linky",
+			homeId: homeId(),
+			name: "Linky",
+			externalId: "12345678901234",
+		});
+		const plug = DeviceDTO.upsert({
+			kind: "mqtt-discovery-switch",
+			homeId: homeId(),
+			name: "Dryer",
+			externalId: "dryer",
+		});
+		plug.saveState({ type: "switch", on: true, power: null, energy: 4 });
+		for (const [day, total] of [
+			["2026-10-25", 10],
+			["2026-10-26", 22],
+			["2026-10-27", 31],
+		] as const) {
+			EnergyReadingDTO.record(meter.id, new Date(`${day}T12:00:00Z`), total);
+			EnergyReadingDTO.record(
+				plug.id,
+				new Date(`${day}T12:00:00Z`),
+				total / 10,
+			);
+		}
+		const span = { from: "2026-10-24", to: "2026-10-27" };
+		const report = JSON.parse((await call("get_energy", span)).text) as {
+			range: { unit: string };
+			house: { metered: boolean; total: number; buckets: unknown[] };
+			averagePerWeekday: Record<string, number>;
+			appliances: { name: string; total: number }[];
+		};
+		expect(report.range.unit).toBe("day");
+		expect(report.house.metered).toBe(true);
+		expect(report.house.buckets.slice(2)).toEqual([
+			{ key: "2026-10-26", kilowattHours: 12 },
+			{ key: "2026-10-27", kilowattHours: 9 },
+		]);
+		expect(report.house.total).toBe(21);
+		expect(Object.keys(report.averagePerWeekday)).toHaveLength(7);
+		expect(report.appliances).toEqual([
+			expect.objectContaining({ name: "Dryer", total: 2.1 }),
+		]);
+		setSetting("aiHiddenDevices", [plug.id]);
+		expect(
+			JSON.parse((await call("get_energy", span)).text).appliances,
+		).toEqual([]);
+		expect((await call("get_energy", { homeId: "gone" })).isError).toBe(true);
+		expect((await call("get_energy", { month: "2026-13" })).isError).toBe(true);
 	});
 
 	test("the device control tools send their command to the device", async () => {

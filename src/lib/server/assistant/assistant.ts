@@ -17,11 +17,13 @@ import { scenes } from "#lib/server/automations/scenes.js";
 import { Logger } from "#lib/server/core/logger.js";
 import { secrets } from "#lib/server/core/secrets.js";
 import { devices } from "#lib/server/devices/devices.js";
+import { energyView } from "#lib/server/mcp/energy-view.js";
 import { mcpEndpoint } from "#lib/server/mcp/server.js";
 import {
 	automationSchema,
 	deviceCommandSchema,
 } from "#lib/server/validation/automation.js";
+import { energyQuestionSchema } from "#lib/server/validation/energy.js";
 import { sceneSchema } from "#lib/server/validation/scene.js";
 
 const logger = new Logger("Assistant");
@@ -29,7 +31,7 @@ const model = "claude-opus-5-5";
 const longestLoop = 8;
 
 const instructions = `You are the assistant built into LocalAssistant, a self-hosted smart home app for one household. You talk with a person signed in to it.
-Answer from the house as get_house reports it, never from guesses: call it before talking about devices, rooms or scenes. To change something, call control_device or set_scene, then say in one short sentence what you did, or what failed and why.
+Answer from the house as get_house reports it, never from guesses: call it before talking about devices, rooms or scenes. get_house only has the last reading: for electricity over time (which days used more, this month against last, what uses the most), call get_energy, compare its buckets with the span before and the appliances, and name the days and figures. To change something, call control_device or set_scene, then say in one short sentence what you did, or what failed and why.
 You can also create, change, turn off, run and delete routines and scenes: call list_routines first, say what a new or changed one will do, and ask before deleting one.
 Keep replies short and plain, in the language the person writes in. When a request is ambiguous (two lamps match "the lamp"), ask which one instead of picking. Never claim a device changed unless the tool said so.`;
 
@@ -65,6 +67,11 @@ const tools: Anthropic.Beta.BetaTool[] = [
 		description:
 			"The household: its floors and rooms, every device it may show you with its kind, room and last reading, and its scenes. Call it first.",
 		input_schema: { type: "object", properties: {} },
+	},
+	{
+		name: "get_energy",
+		description: energyView.description,
+		input_schema: inputSchema(energyQuestionSchema),
 	},
 	{
 		name: "control_device",
@@ -254,6 +261,12 @@ class Assistant {
 					})),
 				}),
 			};
+		}
+		if (name === "get_energy") {
+			const parsed = energyQuestionSchema.safeParse(input);
+			return parsed.success
+				? { content: JSON.stringify(energyView.answer(home, parsed.data)) }
+				: { content: "That span isn't valid.", error: true };
 		}
 		if (name === "set_scene") {
 			const parsed = sceneInput.safeParse(input);

@@ -35,8 +35,10 @@ import { library } from "#lib/server/automations/library.js";
 import { scenes } from "#lib/server/automations/scenes.js";
 import { configuration } from "#lib/server/core/config.js";
 import { devices } from "#lib/server/devices/devices.js";
+import { energyView } from "#lib/server/mcp/energy-view.js";
 import { plugins } from "#lib/server/plugins/registry.js";
 import { automationSchema } from "#lib/server/validation/automation.js";
+import { energyQuestionSchema } from "#lib/server/validation/energy.js";
 import { sceneSchema } from "#lib/server/validation/scene.js";
 
 const jwksCacheKey = {};
@@ -158,6 +160,21 @@ class McpEndpoint {
 				const home = this.#home(homeId);
 				return home
 					? this.#reply(this.house(home))
+					: this.#failure("No home has that id. Call list_homes.");
+			},
+		);
+		server.registerTool(
+			"get_energy",
+			{
+				title: "Get energy use",
+				description: `${energyView.description} Without homeId, the first home.`,
+				inputSchema: energyQuestionSchema.extend({ homeId: homeIdField }),
+				annotations: { readOnlyHint: true },
+			},
+			({ homeId, ...question }) => {
+				const home = this.#home(homeId);
+				return home
+					? this.#reply(energyView.answer(home, question))
 					: this.#failure("No home has that id. Call list_homes.");
 			},
 		);
