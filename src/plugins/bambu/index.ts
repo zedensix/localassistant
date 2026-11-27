@@ -34,6 +34,12 @@ const stages: Record<string, PrinterStage> = {
 	FAILED: "failed",
 };
 
+const commandStages = {
+	pause: "paused",
+	resume: "printing",
+	stop: "idle",
+} as const;
+
 type Report = Record<string, unknown>;
 
 interface Watch {
@@ -112,11 +118,15 @@ class BambuPrinters implements Plugin {
 	}
 
 	/**
-	 * Pauses, resumes or stops a print, turns the chamber light on or off, or sets the print speed.
+	 * Pauses, resumes or stops a print, turns the chamber light on or off, or sets the print speed; returns the state
+	 * the printer is now in, so the change shows before its next report.
 	 *
 	 * @throws When the printer can't be reached or refuses the command.
 	 */
-	async command(device: PluginDevice, command: DeviceCommand): Promise<void> {
+	async command(
+		device: PluginDevice,
+		command: DeviceCommand,
+	): Promise<PrinterState | undefined> {
 		if (command.type !== "printer") {
 			throw new Error("A printer only takes printer commands.");
 		}
@@ -144,6 +154,15 @@ class BambuPrinters implements Plugin {
 				print: { command: "print_speed", param: String(change.speed) },
 			});
 		}
+		const state = device.state?.type === "printer" ? device.state : null;
+		return state
+			? {
+					...state,
+					stage: change.command ? commandStages[change.command] : state.stage,
+					light: change.light ?? state.light,
+					speed: change.speed ?? state.speed,
+				}
+			: undefined;
 	}
 
 	/**
@@ -182,8 +201,8 @@ class BambuPrinters implements Plugin {
 				client.once("connect", () => resolve());
 			});
 			const reply = this.#reply(client, section ?? "", sequenceId);
-			await client.subscribeAsync(this.#topic(device, "report"));
-			await client.publishAsync(
+			client.subscribe(this.#topic(device, "report"));
+			client.publish(
 				this.#topic(device, "request"),
 				JSON.stringify({
 					[section ?? ""]: { ...body, sequence_id: sequenceId },
@@ -278,11 +297,13 @@ class BambuPrinters implements Plugin {
 			);
 		});
 		client.on("message", (_topic, payload) => {
-			const print = this.#parse(payload)?.print;
+			const report = this.#parse(payload);
+			const print = report?.print;
 			if (print && typeof print === "object") {
 				watch.print = { ...watch.print, ...(print as Report) };
 				watch.dirty = true;
 			}
+			this.#heardLight(watch, report?.system);
 		});
 		client.on("error", (error) => {
 			watch.error = this.#explain(error);
@@ -335,6 +356,34 @@ class BambuPrinters implements Plugin {
 				}
 			});
 		});
+	}
+
+	/**
+	 * Applies a light change the printer confirmed to the watched report, since the printer may not push its new
+	 * `lights_report` until the next full report.
+	 */
+	#heardLight(watch: Watch, system: unknown): void {
+		const reply = system as Report | undefined;
+		if (
+			!watch.print ||
+			reply?.command !== "ledctrl" ||
+			typeof reply.led_node !== "string" ||
+			typeof reply.led_mode !== "string" ||
+			(reply.result !== undefined && reply.result !== "success")
+		) {
+			return;
+		}
+		const lights = Array.isArray(watch.print.lights_report)
+			? (watch.print.lights_report as Report[])
+			: [];
+		watch.print = {
+			...watch.print,
+			lights_report: [
+				...lights.filter((light) => light.node !== reply.led_node),
+				{ node: reply.led_node, mode: reply.led_mode },
+			],
+		};
+		watch.dirty = true;
 	}
 
 	#close(deviceId: string, watch: Watch): void {

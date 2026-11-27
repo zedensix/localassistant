@@ -49,7 +49,10 @@ Steps run one after the other:
   valve, a blind, a button, a printer or a robot vacuum;
 - **Set a scene**;
 - **Send a notification** to everyone, the admins or one person, with up to two
-  scenes as buttons (see [Notifications](notifications.md));
+  scenes as buttons (see [Notifications](notifications.md)).
+  `{energy:last-week}` in its title or message becomes the house's electricity
+  use over that span when it's sent, like "152.4 kWh"; the other spans are the
+  energy page's (`yesterday`, `this-month`, `last-month` and so on);
 - **Move blinds** of a room or every blind in the house;
 - **Wait** some minutes before the next steps. Changing or switching off the
   routine cancels the steps still waiting.

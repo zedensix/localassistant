@@ -26,6 +26,7 @@ import { kindInfo } from "#lib/plugins.js";
 import { scenes } from "#lib/server/automations/scenes.js";
 import { Logger } from "#lib/server/core/logger.js";
 import { devices } from "#lib/server/devices/devices.js";
+import { energy } from "#lib/server/house/energy.js";
 import { type PresenceChange, presences } from "#lib/server/house/presence.js";
 import type { JobPayloads } from "#lib/server/jobs/types.js";
 import { plugins } from "#lib/server/plugins/registry.js";
@@ -396,10 +397,12 @@ class Automations {
 		if (userIds.length === 0) {
 			return ["Nobody to tell: that account is gone."];
 		}
+		const home = HomeDTO.find(automation.homeId);
+		const timeZone = home ? this.timeZoneOf(home) : "UTC";
 		JobDTO.enqueue("push.send", {
 			userIds,
-			title: action.title,
-			body: action.body,
+			title: energy.fillIn(action.title, automation.homeId, timeZone),
+			body: energy.fillIn(action.body, automation.homeId, timeZone),
 			url: "/",
 			actions: action.sceneIds.flatMap((sceneId) => {
 				const scene = SceneDTO.find(sceneId, automation.homeId);

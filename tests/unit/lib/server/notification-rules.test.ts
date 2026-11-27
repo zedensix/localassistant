@@ -160,6 +160,35 @@ describe("notifications", () => {
 		);
 	});
 
+	test("a routine's notification fills in the house's energy use", async () => {
+		const ada = createUser("ada", "Ada").id;
+		const routine = AutomationDTO.create(homeId(), {
+			name: "Weekly energy",
+			trigger: { type: "sun", event: "sunset", offsetMinutes: 0 },
+			period: { type: "always" },
+			conditions: [],
+			actions: [
+				{
+					type: "notify",
+					who: "everyone",
+					title: "Last week: {energy:last-week}",
+					body: "Yesterday {energy:yesterday}, {energy:nope} stays.",
+					sceneIds: [],
+				},
+			],
+		});
+		await automations.run(routine, "Run by hand");
+		expect(queuedPushes()).toEqual([
+			{
+				userIds: [ada],
+				title: "Last week: 0 kWh",
+				body: "Yesterday 0 kWh, {energy:nope} stays.",
+				url: "/",
+				actions: [],
+			},
+		]);
+	});
+
 	test("forms check notify steps, rules and notification buttons", () => {
 		const routine = {
 			name: "Tell",
@@ -180,6 +209,18 @@ describe("notifications", () => {
 			automationSchema.safeParse({
 				...routine,
 				actions: [{ ...routine.actions[0], sceneIds: ["a", "b", "c"] }],
+			}).success,
+		).toBe(false);
+		expect(
+			automationSchema.safeParse({
+				...routine,
+				actions: [{ ...routine.actions[0], body: "{energy:last-week}" }],
+			}).success,
+		).toBe(true);
+		expect(
+			automationSchema.safeParse({
+				...routine,
+				actions: [{ ...routine.actions[0], title: "{energy:last-year}" }],
 			}).success,
 		).toBe(false);
 		expect(

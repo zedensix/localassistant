@@ -189,6 +189,7 @@ describe("energy", () => {
 			[{ preset: "yesterday" }, ["2026-10-28", "2026-10-28", "hour"]],
 			[{ preset: "last-3-days" }, ["2026-10-27", today, "hour"]],
 			[{ preset: "this-week" }, ["2026-10-26", today, "day"]],
+			[{ preset: "last-week" }, ["2026-10-19", "2026-10-25", "day"]],
 			[{ preset: "this-month" }, ["2026-10-01", "2026-10-31", "day"]],
 			[{ preset: "last-month" }, ["2026-09-01", "2026-09-30", "day"]],
 			[{ preset: "last-3-months" }, ["2026-08-01", today, "day"]],

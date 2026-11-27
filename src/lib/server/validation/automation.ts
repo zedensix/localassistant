@@ -22,7 +22,18 @@ import {
 	vacuumSuctions,
 	vacuumWetness,
 } from "#lib/devices.js";
+import { energyPresets } from "#lib/energy.js";
 import { presenceEvents } from "#lib/presence.js";
+
+const energyMessage = `Energy spans: ${energyPresets.map((preset) => `{energy:${preset}}`).join(", ")}.`;
+const energyHint = `Fixed text, except that each {energy:<span>} becomes the house's electricity use over that span when it's sent, like "152.4 kWh". Spans: ${energyPresets.join(", ")}.`;
+
+/** Whether every `{energy:...}` in `text` names a span the notification can fill. */
+function knownEnergy(text: string): boolean {
+	return [...text.matchAll(/\{energy:([^}]*)\}/g)].every(([, name]) =>
+		energyPresets.some((preset) => preset === name),
+	);
+}
 
 const deviceId = z.string().trim().min(1, "Pick a device.");
 const monthDay = z
@@ -188,8 +199,15 @@ export const automationActionSchema = z.discriminatedUnion("type", [
 			.string()
 			.trim()
 			.min(1, "Type what it says.")
-			.max(80, "Keep it under 80 characters."),
-		body: z.string().trim().max(200, "Keep it under 200 characters."),
+			.max(80, "Keep it under 80 characters.")
+			.refine(knownEnergy, energyMessage)
+			.describe(energyHint),
+		body: z
+			.string()
+			.trim()
+			.max(200, "Keep it under 200 characters.")
+			.refine(knownEnergy, energyMessage)
+			.describe(energyHint),
 		sceneIds: z.array(z.string().trim().min(1)).max(2, "Two buttons at most."),
 	}),
 	z.object({

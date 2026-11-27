@@ -249,6 +249,10 @@
 						maxlength={200}
 						class="h-11"
 					/>
+					<Field.Description
+						>{"{energy:last-week}"} becomes the house's use over that span when it's
+						sent, like "152.4 kWh". Other spans: yesterday, this-month, last-month.</Field.Description
+					>
 				</Field.Field>
 				{#if scenes.length > 0}
 					<Field.Field>

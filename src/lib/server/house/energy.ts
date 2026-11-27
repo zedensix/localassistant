@@ -10,6 +10,7 @@ import type {
 	EnergySummary,
 	EnergyUnit,
 } from "#lib/energy.js";
+import { energyPresets } from "#lib/energy.js";
 import { kindInfo } from "#lib/plugins.js";
 import { plugins } from "#lib/server/plugins/registry.js";
 
@@ -320,6 +321,18 @@ class Energy {
 		);
 	}
 
+	/** `text` with each `{energy:<preset>}` replaced by the house's use over that span in `timeZone`: "152.4 kWh". */
+	fillIn(text: string, homeId: string, timeZone: string): string {
+		return text.replaceAll(/\{energy:([a-z0-9-]+)\}/g, (token, name) => {
+			const preset = energyPresets.find((entry) => entry === name);
+			if (!preset) {
+				return token;
+			}
+			const { total } = this.report(homeId, timeZone, { preset }).house;
+			return `${Number(total.toFixed(1))} kWh`;
+		});
+	}
+
 	/** The dates and bar size a preset, a month, the latest of a season or a custom span covers, given the local `today` and the first reading. */
 	resolve(
 		choice: EnergyChoice,
@@ -368,6 +381,11 @@ class Energy {
 			yesterday: [this.#shift(today, -1), this.#shift(today, -1), "hour"],
 			"last-3-days": [this.#shift(today, -2), today, "hour"],
 			"this-week": [this.#shift(today, -weekday), today, "day"],
+			"last-week": [
+				this.#shift(today, -weekday - 7),
+				this.#shift(today, -weekday - 1),
+				"day",
+			],
 			"this-month": [`${month}-01`, this.#monthEnd(month), "day"],
 			"last-month": [`${lastMonth}-01`, this.#monthEnd(lastMonth), "day"],
 			"last-3-months": [`${this.#monthsBefore(month, 2)}-01`, today, "day"],

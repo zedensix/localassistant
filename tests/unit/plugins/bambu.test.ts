@@ -57,37 +57,23 @@ class FakeClient extends EventEmitter {
 		return this;
 	}
 
-	subscribeAsync() {
-		return Promise.resolve([]);
-	}
-
-	publish(topic: string, payload: string) {
+	publish(topic: string, payload: string, options?: { qos: number }) {
 		const parsed = JSON.parse(payload) as Published["payload"];
-		broker.published.push({ topic, payload: parsed });
+		broker.published.push({ topic, payload: parsed, qos: options?.qos });
 		if (parsed.pushing?.command === "pushall") {
 			setTimeout(() => this.deliver({ print: broker.report }), 1);
+			return this;
 		}
-		return this;
-	}
-
-	publishAsync(topic: string, payload: string, options: { qos: number }) {
-		const parsed = JSON.parse(payload) as Published["payload"];
-		broker.published.push({ topic, payload: parsed, qos: options.qos });
 		const [section, body] = Object.entries(parsed)[0] ?? [];
 		if (section && body && broker.result !== undefined) {
-			setTimeout(
-				() =>
-					this.deliver({
-						[section]: {
-							command: body.command,
-							sequence_id: body.sequence_id,
-							result: broker.result,
-						},
-					}),
-				1,
-			);
+			const reply = { [section]: { ...body, result: broker.result } };
+			setTimeout(() => {
+				for (const client of broker.clients) {
+					client.deliver(reply);
+				}
+			}, 1);
 		}
-		return Promise.resolve(undefined);
+		return this;
 	}
 
 	deliver(message: Record<string, unknown>) {
@@ -293,6 +279,25 @@ describe("Bambu Lab printers", () => {
 				context,
 			),
 		).rejects.toThrow("only takes printer commands");
+	});
+
+	test("records a light change at once and keeps it when the printer confirms it", async () => {
+		const printer = addPrinter();
+		await devices.refresh(printer);
+		await devices.command(DeviceDTO.find(printer.id) ?? printer, {
+			type: "printer",
+			change: { light: false, speed: 4 },
+		});
+		expect(DeviceDTO.find(printer.id)?.state).toMatchObject({
+			light: false,
+			speed: 4,
+		});
+		broker.clients[0]?.deliver({ print: { mc_percent: 44 } });
+		await devices.refresh(DeviceDTO.find(printer.id) ?? printer);
+		expect(DeviceDTO.find(printer.id)?.state).toMatchObject({
+			light: false,
+			progress: 44,
+		});
 	});
 
 	test("serves only its camera, and stops every connection", async () => {

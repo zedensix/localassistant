@@ -3,6 +3,7 @@
 	import Calendar1Icon from "@lucide/svelte/icons/calendar-1";
 	import CalendarArrowUpIcon from "@lucide/svelte/icons/calendar-arrow-up";
 	import CalendarCheckIcon from "@lucide/svelte/icons/calendar-check";
+	import CalendarChevronsLeftIcon from "@lucide/svelte/icons/calendar-chevrons-left";
 	import CalendarClockIcon from "@lucide/svelte/icons/calendar-clock";
 	import CalendarCogIcon from "@lucide/svelte/icons/calendar-cog";
 	import CalendarDaysIcon from "@lucide/svelte/icons/calendar-days";
@@ -54,6 +55,7 @@
 		yesterday: CalendarMinusIcon,
 		"last-3-days": CalendarClockIcon,
 		"this-week": CalendarDaysIcon,
+		"last-week": CalendarChevronsLeftIcon,
 		"this-month": CalendarIcon,
 		"last-month": CalendarFoldIcon,
 		"last-3-months": CalendarRangeIcon,
