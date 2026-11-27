@@ -147,6 +147,8 @@ export const mediaChangeSchema = z
 
 export const buttonSchema = z.object({ deviceId });
 
+export const checkDeviceSchema = z.object({ deviceId });
+
 export const logbookPageSchema = z.object({
 	before: z.coerce.number().int().positive().optional(),
 });

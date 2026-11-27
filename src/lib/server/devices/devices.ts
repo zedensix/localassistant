@@ -3,7 +3,7 @@ import { DeviceDTO } from "#lib/dto/device.js";
 import { JobDTO } from "#lib/dto/job.js";
 import { UserDTO } from "#lib/dto/user.js";
 import type { CameraClips, DeviceCommand } from "#lib/plugin-sdk.js";
-import { kindInfo } from "#lib/plugins.js";
+import { isSecretField, kindInfo } from "#lib/plugins.js";
 import { Logger } from "#lib/server/core/logger.js";
 import { deviceEvents } from "#lib/server/devices/device-events.js";
 import { pluginContexts } from "#lib/server/plugins/context.js";
@@ -62,6 +62,40 @@ class Devices {
 			device.saveError(this.message(error));
 			this.#reportOutage(device);
 		}
+	}
+
+	/**
+	 * Has `device`'s plugin test its stored settings against the real service now, then reads it again; returns what the
+	 * test found. A failure is recorded on the device.
+	 *
+	 * @throws When its plugin can't test a device, is off or gone, or the test fails, saying why.
+	 */
+	async check(device: DeviceDTO): Promise<string> {
+		const hosted = plugins.forKind(device.kind);
+		const form = hosted?.manifest.device;
+		if (!hosted?.plugin.test || !form || !plugins.enabled(hosted.manifest.id)) {
+			throw new Error("This device can't check itself.");
+		}
+		const stored = pluginContexts.device(device);
+		const values = Object.fromEntries(
+			form.fields.flatMap((field) => {
+				const value = isSecretField(field)
+					? stored.secret(field.name)
+					: stored.fields[field.name];
+				return value === null || value === undefined
+					? []
+					: [[field.name, value]];
+			}),
+		);
+		let found: string;
+		try {
+			found = await hosted.plugin.test(values, hosted.context);
+		} catch (error) {
+			device.saveError(this.message(error));
+			throw error;
+		}
+		await this.refresh(device);
+		return found;
 	}
 
 	/** Whether `device` is down: unreachable, failing to read, or reported offline by its cloud. */

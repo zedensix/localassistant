@@ -19,6 +19,10 @@ Two ways, use one:
   account, allow it, copy the token, then **Devices**, **Add a device**, **Linky
   online**, **Add the Linky** with the token and the 14-digit PRM (on your bill,
   or press + on the meter until it shows). The last year comes in at once, then
-  a day behind, checked every six hours. The token is stored encrypted. It works
-  whoever sells you the electricity (Engie, EDF, TotalEnergies): Enedis runs
-  every Linky and holds the readings, the supplier only bills them.
+  a day behind: once yesterday is in it waits for the next day, otherwise it
+  asks again every hour. Three days with nothing new from Enedis, or a refused
+  token, puts the meter in error (admins get told after an hour) with the link
+  to get a new token. **Check it now** on the device's edit sheet asks
+  conso.boris.sh straight away. The token is stored encrypted. It works whoever
+  sells you the electricity (Engie, EDF, TotalEnergies): Enedis runs every Linky
+  and holds the readings, the supplier only bills them.

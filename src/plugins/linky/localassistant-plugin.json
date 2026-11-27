@@ -8,7 +8,7 @@
 	"needs": [],
 	"device": {
 		"title": "Linky (Enedis online)",
-		"description": "No hardware: Enedis's daily use, a day behind, through conso.boris.sh. Sign in there with your Enedis account (Enedis holds every Linky's readings, whoever your supplier is), allow it, and copy the token. For live power, use a ZLinky_TIC Zigbee reader instead.",
+		"description": "No hardware: Enedis's daily use, a day behind, through conso.boris.sh. Get the token on https://conso.boris.sh: sign in there with your Enedis account (Enedis holds every Linky's readings, whoever your supplier is), allow it, and copy the token. For live power, use a ZLinky_TIC Zigbee reader instead.",
 		"submit": "Add the Linky",
 		"fields": [
 			{
@@ -25,9 +25,9 @@
 				"name": "token",
 				"label": "Token",
 				"type": "secret",
-				"description": "Stored encrypted, never shown again. A new one comes from conso.boris.sh.",
+				"description": "Get it on https://conso.boris.sh. Stored encrypted, never shown again.",
 				"pattern": "^.{20,2000}$",
-				"message": "Paste the token conso.boris.sh gave you."
+				"message": "Paste the token from https://conso.boris.sh."
 			}
 		]
 	},

@@ -16,6 +16,7 @@ import {
 	cardDetailsSchema,
 	cardOrderSchema,
 	cardSizeSchema,
+	checkDeviceSchema,
 	climateChangeSchema,
 	coverActionSchema,
 	coverGroupSchema,
@@ -46,6 +47,16 @@ async function attempt(work: () => Promise<void>): Promise<void> {
 		error(502, devices.message(failure));
 	}
 }
+
+export const checkDevice = command(checkDeviceSchema, async ({ deviceId }) => {
+	access.requireUser();
+	const device = deviceFor(deviceId);
+	try {
+		return await devices.check(device);
+	} catch (failure) {
+		error(502, devices.message(failure));
+	}
+});
 
 export const controlCover = command(
 	coverActionSchema,

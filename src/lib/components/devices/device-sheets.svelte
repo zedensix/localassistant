@@ -31,6 +31,7 @@
 		kindInfo,
 		type PluginSetup,
 	} from "#lib/plugins.js";
+	import { checkDevice } from "#lib/remote/devices.remote.js";
 	import { testDevice } from "#lib/remote/plugins.remote.js";
 	import { useSheets } from "#lib/sheets.svelte.js";
 	import { enhanceToast, toastError } from "#lib/toast.js";
@@ -68,6 +69,7 @@
 	let addForm = $state<HTMLFormElement | null>(null);
 	let testing = $state(false);
 	let tested = $state<{ ok: boolean; message: string } | null>(null);
+	let checking = $state(false);
 
 	const editing = $derived(
 		devices.find((device) => device.id === sheets.editDeviceId),
@@ -155,6 +157,23 @@
 	function handleTest() {
 		toast.promise(testCallback(), {
 			loading: "Testing",
+			success: (message) => message,
+			error: (failure) => toastError(failure),
+		});
+	}
+
+	async function checkCallback(deviceId: string): Promise<string> {
+		checking = true;
+		try {
+			return await checkDevice({ deviceId });
+		} finally {
+			checking = false;
+		}
+	}
+
+	function handleCheck(deviceId: string) {
+		toast.promise(checkCallback(deviceId), {
+			loading: "Checking",
 			success: (message) => message,
 			error: (failure) => toastError(failure),
 		});
@@ -516,6 +535,16 @@
 				<Button type="submit" class="h-11 rounded-xl px-5"
 					><CheckIcon />Save</Button
 				>
+				{#if editingSetup?.testable && editingForm}
+					<Button
+						variant="outline"
+						class="h-11 rounded-xl px-5"
+						disabled={checking}
+						onclick={() => editing && handleCheck(editing.id)}
+						>{#if checking}<Spinner />{:else}<FlaskConicalIcon />{/if}Check it
+						now</Button
+					>
+				{/if}
 				{#if editingSetup?.connection}
 					<Button
 						variant="outline"
