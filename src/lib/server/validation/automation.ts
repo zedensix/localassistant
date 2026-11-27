@@ -194,7 +194,13 @@ export const automationActionSchema = z.discriminatedUnion("type", [
 	}),
 	z.object({
 		type: z.literal("notify"),
-		who: z.string().trim().min(1, "Pick who to tell."),
+		who: z
+			.string()
+			.trim()
+			.min(1, "Pick who to tell.")
+			.describe(
+				'An account id from the house\'s people, "everyone" or "admins".',
+			),
 		title: z
 			.string()
 			.trim()

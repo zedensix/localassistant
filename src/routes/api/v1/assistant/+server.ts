@@ -6,7 +6,13 @@ import { mobileApi } from "#lib/server/mobile/api.js";
 import { assistantTurnsSchema } from "#lib/server/validation/assistant.js";
 
 export const POST = async ({ request, url }) => {
-	access.requireUser();
+	const user = access.requireUser();
 	const { turns } = await mobileApi.body(request, assistantTurnsSchema);
-	return json(await assistant.answer(mobileApi.home(url), turns));
+	return json(
+		await assistant.answer(
+			mobileApi.home(url),
+			{ id: user.id, name: user.name },
+			turns,
+		),
+	);
 };

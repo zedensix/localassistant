@@ -15,7 +15,7 @@ export const askAssistant = command(
 		const user = access.requireUser();
 		return assistant.converse(
 			homes.current(getRequestEvent().cookies),
-			user.id,
+			{ id: user.id, name: user.name },
 			conversationId,
 			text,
 		);

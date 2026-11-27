@@ -1,14 +1,4 @@
-import {
-	type AuthInfo,
-	bearerAuthChallengeResponse,
-	createMcpHandler,
-	getOAuthProtectedResourceMetadataUrl,
-	McpServer,
-	OAuthError,
-	OAuthErrorCode,
-	verifyBearerToken,
-} from "@modelcontextprotocol/server";
-import { verifyJwsAccessToken } from "better-auth/oauth2";
+import { createMcpHandler, McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 
 import {
@@ -19,7 +9,6 @@ import {
 	printerSpeeds,
 	vacuumCommands,
 } from "#lib/devices.js";
-import { AiAppDTO } from "#lib/dto/ai-app.js";
 import { AutomationDTO } from "#lib/dto/automation.js";
 import { DeviceDTO } from "#lib/dto/device.js";
 import { FloorDTO } from "#lib/dto/floor.js";
@@ -27,6 +16,7 @@ import { HomeDTO } from "#lib/dto/home.js";
 import { RoomDTO } from "#lib/dto/room.js";
 import { SceneDTO } from "#lib/dto/scene.js";
 import { getSetting } from "#lib/dto/setting.js";
+import { UserDTO } from "#lib/dto/user.js";
 import { houseGroups } from "#lib/house.js";
 import type { DeviceCommand } from "#lib/plugin-sdk.js";
 import { kindInfo } from "#lib/plugins.js";
@@ -35,13 +25,12 @@ import { library } from "#lib/server/automations/library.js";
 import { scenes } from "#lib/server/automations/scenes.js";
 import { configuration } from "#lib/server/core/config.js";
 import { devices } from "#lib/server/devices/devices.js";
+import { mcpAccessTokens } from "#lib/server/mcp/access-tokens.js";
 import { energyView } from "#lib/server/mcp/energy-view.js";
 import { plugins } from "#lib/server/plugins/registry.js";
 import { automationSchema } from "#lib/server/validation/automation.js";
 import { energyQuestionSchema } from "#lib/server/validation/energy.js";
 import { sceneSchema } from "#lib/server/validation/scene.js";
-
-const jwksCacheKey = {};
 
 const deviceIdField = z
 	.string()
@@ -72,22 +61,11 @@ class McpEndpoint {
 				{ status: 404 },
 			);
 		}
-		const resourceUrl = new URL(resource);
-		const challenge = {
-			resourceMetadataUrl: getOAuthProtectedResourceMetadataUrl(resourceUrl),
-		};
-		try {
-			await verifyBearerToken(request.headers.get("authorization"), {
-				...challenge,
-				expectedResource: resourceUrl,
-				verifier: {
-					verifyAccessToken: (token) => this.#verify(token, resourceUrl),
-				},
-			});
-		} catch (error) {
-			return bearerAuthChallengeResponse(error, challenge);
+		const authInfo = await mcpAccessTokens.verify(request, new URL(resource));
+		if (authInfo instanceof Response) {
+			return authInfo;
 		}
-		return createMcpHandler(() => this.server()).fetch(request);
+		return createMcpHandler(() => this.server()).fetch(request, { authInfo });
 	}
 
 	/** An MCP server with the house tools; every signed-in person may read and drive every device. */
@@ -130,6 +108,7 @@ class McpEndpoint {
 			devices: DeviceDTO.inHome(home.id)
 				.filter((device) => this.visible(device))
 				.map((device) => this.#deviceJson(device)),
+			people: UserDTO.people(),
 		};
 	}
 
@@ -152,14 +131,15 @@ class McpEndpoint {
 			{
 				title: "List the house",
 				description:
-					'A home: its floors and outside spaces with their rooms (each with an id), and every device with its id, kind, room (null for the whole house), last reading and error if it is unreachable. Room id "house" means the whole house. Without homeId, the first home.',
+					'A home: its floors and outside spaces with their rooms (each with an id), every device with its id, kind, room (null for the whole house), last reading and error if it is unreachable, the accounts (people) and which one you act for (you: "me" means them). Room id "house" means the whole house. Without homeId, the first home.',
 				inputSchema: z.object({ homeId: homeIdField }),
 				annotations: { readOnlyHint: true },
 			},
-			({ homeId }) => {
+			({ homeId }, extra) => {
 				const home = this.#home(homeId);
+				const you = extra.http?.authInfo?.extra?.userId ?? null;
 				return home
-					? this.#reply(this.house(home))
+					? this.#reply({ ...this.house(home), you })
 					: this.#failure("No home has that id. Call list_homes.");
 			},
 		);
@@ -676,32 +656,6 @@ class McpEndpoint {
 			state,
 			error: stateError,
 			readAt: stateAt?.toISOString() ?? null,
-		};
-	}
-
-	async #verify(token: string, resource: URL): Promise<AuthInfo> {
-		const claims = await verifyJwsAccessToken(token, {
-			jwksFetch: () => authService.get().api.getJwks(),
-			jwksCacheKey,
-			verifyOptions: {
-				issuer: `${resource.origin}/api/auth`,
-				audience: resource.href,
-			},
-		}).catch(() => {
-			throw new OAuthError(OAuthErrorCode.InvalidToken, "Sign in again.");
-		});
-		const userId = claims.sub;
-		const clientId = typeof claims.azp === "string" ? claims.azp : undefined;
-		if (!userId || !clientId || !AiAppDTO.allowed(userId, clientId)) {
-			throw new OAuthError(OAuthErrorCode.InvalidToken, "Sign in again.");
-		}
-		return {
-			token,
-			clientId,
-			scopes: typeof claims.scope === "string" ? claims.scope.split(" ") : [],
-			expiresAt: claims.exp,
-			resource,
-			extra: { userId },
 		};
 	}
 

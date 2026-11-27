@@ -48,6 +48,9 @@ function fakeClient(replies: Reply[]) {
 	return { client, requests };
 }
 
+const ada = { id: "ada", name: "Ada" };
+const bob = { id: "bob", name: "Bob" };
+
 function lamp() {
 	return DeviceDTO.upsert({
 		kind: "mqtt-discovery-light",
@@ -110,7 +113,7 @@ describe("the assistant", () => {
 			},
 		]);
 		spyOn(assistant, "client").mockReturnValue(client);
-		const reply = await assistant.reply(HomeDTO.first(), [
+		const reply = await assistant.reply(HomeDTO.first(), ada, [
 			{ role: "user", text: "Turn the lamp on" },
 		]);
 		expect(reply).toEqual({
@@ -122,6 +125,9 @@ describe("the assistant", () => {
 			type: "light",
 			change: { on: true },
 		});
+		expect(requests[0]?.system).toContain(
+			'You are talking with "Ada", account id ada: "me"',
+		);
 		expect(requests[0]).toMatchObject({
 			model: "claude-opus-5-5",
 			fallbacks: "default",
@@ -166,8 +172,11 @@ describe("the assistant", () => {
 		]).client;
 		spyOn(assistant, "client").mockReturnValue(refusing);
 		expect(
-			(await assistant.reply(HomeDTO.first(), [{ role: "user", text: "x" }]))
-				.text,
+			(
+				await assistant.reply(HomeDTO.first(), ada, [
+					{ role: "user", text: "x" },
+				])
+			).text,
 		).toBe("I can't help with that one.");
 		const looping = fakeClient(
 			Array.from({ length: 8 }, () => ({
@@ -179,16 +188,22 @@ describe("the assistant", () => {
 		).client;
 		spyOn(assistant, "client").mockReturnValue(looping);
 		expect(
-			(await assistant.reply(HomeDTO.first(), [{ role: "user", text: "x" }]))
-				.text,
+			(
+				await assistant.reply(HomeDTO.first(), ada, [
+					{ role: "user", text: "x" },
+				])
+			).text,
 		).toContain("too many steps");
 		const silent = fakeClient([
 			{ stop_reason: "end_turn", content: [] },
 		]).client;
 		spyOn(assistant, "client").mockReturnValue(silent);
 		expect(
-			(await assistant.reply(HomeDTO.first(), [{ role: "user", text: "x" }]))
-				.text,
+			(
+				await assistant.reply(HomeDTO.first(), ada, [
+					{ role: "user", text: "x" },
+				])
+			).text,
 		).toBe("Done.");
 	});
 
@@ -284,7 +299,7 @@ describe("the assistant", () => {
 			});
 		const first = await assistant.converse(
 			home,
-			"ada",
+			ada,
 			undefined,
 			"How much   electricity did we use yesterday, and which days went up the most this month?",
 		);
@@ -295,8 +310,8 @@ describe("the assistant", () => {
 		expect(conversation?.title).toBe(
 			"How much electricity did we use yesterday, and which days w…",
 		);
-		await assistant.converse(home, "ada", first.conversationId, "Why?");
-		expect(answer.mock.calls[1]?.[1]).toEqual([
+		await assistant.converse(home, ada, first.conversationId, "Why?");
+		expect(answer.mock.calls[1]?.[2]).toEqual([
 			{
 				role: "user",
 				text: "How much   electricity did we use yesterday, and which days went up the most this month?",
@@ -315,11 +330,11 @@ describe("the assistant", () => {
 			{ role: "assistant", thinking: null, actions: ["Turn PAC off"] },
 		]);
 		await expect(
-			assistant.converse(home, "bob", first.conversationId, "Hi"),
+			assistant.converse(home, bob, first.conversationId, "Hi"),
 		).rejects.toMatchObject({ status: 404 });
 		answer.mockRejectedValueOnce(new Error("down"));
 		await expect(
-			assistant.converse(home, "bob", undefined, "Hi"),
+			assistant.converse(home, bob, undefined, "Hi"),
 		).rejects.toThrow("down");
 		expect(AssistantConversationDTO.forUser("bob")).toEqual([]);
 		answer.mockRestore();
@@ -362,7 +377,7 @@ describe("the assistant", () => {
 	test("a request learns why it failed in words, never the API's own error", async () => {
 		const home = HomeDTO.first();
 		const turns = [{ role: "user" as const, text: "Hi" }];
-		await expect(assistant.answer(home, turns)).rejects.toMatchObject({
+		await expect(assistant.answer(home, ada, turns)).rejects.toMatchObject({
 			status: 409,
 		});
 		setSetting("assistant", { encryptedApiKey: secrets.encrypt("sk-ant-x") });
@@ -373,12 +388,12 @@ describe("the assistant", () => {
 			[new Error("down"), 502],
 		] as const) {
 			reply.mockRejectedValueOnce(failure);
-			await expect(assistant.answer(home, turns)).rejects.toMatchObject({
+			await expect(assistant.answer(home, ada, turns)).rejects.toMatchObject({
 				status,
 			});
 		}
 		reply.mockResolvedValueOnce({ text: "Hello", thinking: null, actions: [] });
-		expect(await assistant.answer(home, turns)).toEqual({
+		expect(await assistant.answer(home, ada, turns)).toEqual({
 			text: "Hello",
 			thinking: null,
 			actions: [],

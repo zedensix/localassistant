@@ -39,6 +39,11 @@ Answer from the house as get_house reports it, never from guesses: call it befor
 You can also create, change, turn off, run and delete routines and scenes: call list_routines first, say what a new or changed one will do, and ask before deleting one.
 Keep replies short and plain, in the language the person writes in. When a request is ambiguous (two lamps match "the lamp"), ask which one instead of picking. Never claim a device changed unless the tool said so.`;
 
+export interface AssistantPerson {
+	id: string;
+	name: string;
+}
+
 const controlInput = z.object({
 	deviceId: z.string().min(1),
 	command: deviceCommandSchema,
@@ -170,13 +175,14 @@ class Assistant {
 	 */
 	async answer(
 		home: HomeDTO,
+		person: AssistantPerson,
 		history: AssistantTurn[],
 	): Promise<AssistantReply> {
 		if (!this.configured()) {
 			error(409, "An admin has to add a Claude API key first, in Admin, AI.");
 		}
 		try {
-			return await this.reply(home, history);
+			return await this.reply(home, person, history);
 		} catch (failure) {
 			if (failure instanceof AuthenticationError) {
 				error(
@@ -193,17 +199,18 @@ class Assistant {
 	}
 
 	/**
-	 * Answers `text` in `userId`'s conversation `conversationId`, or in a new one titled after it, with the turns before
+	 * Answers `text` in `person`'s conversation `conversationId`, or in a new one titled after it, with the turns before
 	 * as context, and stores the question and the answer once answered; returns the conversation and the answer.
 	 *
 	 * @throws A 404 error when the conversation isn't theirs, else as `answer`.
 	 */
 	async converse(
 		home: HomeDTO,
-		userId: string,
+		person: AssistantPerson,
 		conversationId: string | undefined,
 		text: string,
 	): Promise<AssistantReply & { conversationId: string }> {
+		const userId = person.id;
 		const existing =
 			conversationId === undefined
 				? undefined
@@ -216,7 +223,10 @@ class Assistant {
 					.slice(-contextTurns)
 					.map(({ role, text: said }) => ({ role, text: said }))
 			: [];
-		const reply = await this.answer(home, [...earlier, { role: "user", text }]);
+		const reply = await this.answer(home, person, [
+			...earlier,
+			{ role: "user", text },
+		]);
 		const conversation =
 			existing ?? AssistantConversationDTO.create(userId, this.#title(text));
 		AssistantMessageDTO.add(conversation.id, { role: "user", text });
@@ -231,13 +241,14 @@ class Assistant {
 	}
 
 	/**
-	 * Answers the last turn of `history` in `home`, running the tools it asks for; returns its reply, a summary of its
-	 * thinking and what it did.
+	 * Answers `person`'s last turn of `history` in `home`, running the tools it asks for; returns its reply, a summary of
+	 * its thinking and what it did.
 	 *
 	 * @throws When no key is saved, or the Claude API refuses or can't be reached.
 	 */
 	async reply(
 		home: HomeDTO,
+		person: AssistantPerson,
 		history: AssistantTurn[],
 	): Promise<AssistantReply> {
 		const client = this.client();
@@ -256,7 +267,7 @@ class Assistant {
 				fallbacks: "default",
 				thinking: { type: "adaptive", display: "summarized" },
 				output_config: { effort: "low" },
-				system: instructions,
+				system: `${instructions}\nYou are talking with ${JSON.stringify(person.name)}, account id ${person.id}: "me" and "I" mean them. get_house lists every account under people; a notification goes to an account id, "everyone" or "admins".`,
 				tools,
 				messages,
 			});

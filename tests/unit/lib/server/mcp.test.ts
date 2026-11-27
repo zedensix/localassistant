@@ -13,11 +13,15 @@ import { WeatherDayDTO } from "#lib/dto/weather-day.js";
 import { devices } from "#lib/server/devices/devices.js";
 import { mcpEndpoint } from "#lib/server/mcp/server.js";
 
-import { homeId, resetDatabase } from "../../database.js";
+import { createUser, homeId, resetDatabase } from "../../database.js";
 
 let sequence = 0;
 
-async function rpc(method: string, params: Record<string, unknown> = {}) {
+async function rpc(
+	method: string,
+	params: Record<string, unknown> = {},
+	userId?: string,
+) {
 	sequence += 1;
 	const response = await createMcpHandler(() => mcpEndpoint.server()).fetch(
 		new Request("http://localhost/mcp", {
@@ -29,6 +33,16 @@ async function rpc(method: string, params: Record<string, unknown> = {}) {
 			},
 			body: JSON.stringify({ jsonrpc: "2.0", id: sequence, method, params }),
 		}),
+		userId
+			? {
+					authInfo: {
+						token: "t",
+						clientId: "c",
+						scopes: [],
+						extra: { userId },
+					},
+				}
+			: undefined,
 	);
 	const text = await response.text();
 	const data = text.includes("data:")
@@ -48,8 +62,12 @@ async function rpc(method: string, params: Record<string, unknown> = {}) {
 	};
 }
 
-async function call(name: string, args: Record<string, unknown> = {}) {
-	const reply = await rpc("tools/call", { name, arguments: args });
+async function call(
+	name: string,
+	args: Record<string, unknown> = {},
+	userId?: string,
+) {
+	const reply = await rpc("tools/call", { name, arguments: args }, userId);
 	const content = reply.result?.content?.[0]?.text ?? "";
 	return { isError: reply.result?.isError === true, text: content };
 }
@@ -238,6 +256,13 @@ describe("MCP tools", () => {
 		expect((await call("list_house", { homeId: homeId() })).text).toContain(
 			"Kitchen blind",
 		);
+		const nico = createUser("nico", "Nico");
+		const known = JSON.parse((await call("list_house", {}, nico.id)).text) as {
+			people: { id: string; name: string }[];
+			you: string | null;
+		};
+		expect(known.you).toBe(nico.id);
+		expect(known.people).toContainEqual({ id: nico.id, name: "Nico" });
 		expect((await call("list_house", { homeId: "gone" })).isError).toBe(true);
 		expect(
 			(
