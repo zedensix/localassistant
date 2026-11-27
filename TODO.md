@@ -5,10 +5,6 @@ box while it's being worked on, and delete the entry once it's done.
 
 ## Small
 
-- [ ] The weather history only reaches three months back (Open-Meteo's
-      `past_days`): backfill the rest of the Linky's year from the archive API
-      so a winter can be compared with the last one.
-
 ## Medium
 
 - [ ] The native app's assistant still posts stateless turns to

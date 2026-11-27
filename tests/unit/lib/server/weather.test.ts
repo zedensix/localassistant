@@ -53,6 +53,16 @@ const past = {
 	},
 };
 
+const archive = {
+	daily: {
+		time: ["2024-10-30", "2024-10-31", "2026-10-28"],
+		weather_code: [3, 2, null],
+		temperature_2m_max: [12, 13, null],
+		temperature_2m_min: [4, 5, null],
+		temperature_2m_mean: [8, 9.2, null],
+	},
+};
+
 let calls: string[] = [];
 
 function fakeOpenMeteo(input: string | URL | Request) {
@@ -76,7 +86,13 @@ function fakeOpenMeteo(input: string | URL | Request) {
 		);
 	}
 	return Promise.resolve(
-		Response.json(url.includes("past_days") ? past : forecast),
+		Response.json(
+			url.includes("archive-api")
+				? archive
+				: url.includes("past_days")
+					? past
+					: forecast,
+		),
 	);
 }
 
@@ -164,6 +180,44 @@ describe("weather", () => {
 		expect(calls.some((url) => url.includes("past_days"))).toBe(true);
 		WeatherDayDTO.forget(home.id);
 		expect(WeatherDayDTO.latest(home.id)).toBeNull();
+	});
+
+	test("records two years of past temperatures for a located home, from the archive then the last months", async () => {
+		const fetchMock = spyOn(globalThis, "fetch").mockImplementation(
+			fakeOpenMeteo as typeof fetch,
+		);
+		const home = HomeDTO.first();
+		await expect(weatherService.backfill(home)).rejects.toThrow(
+			"Set the home's location first.",
+		);
+		home.locate(paris);
+		expect(
+			await weatherService.backfill(home, new Date("2026-10-29T10:00:00Z")),
+		).toBe(3);
+		const archiveCall = calls.find((url) => url.includes("archive-api"));
+		expect(archiveCall).toContain("start_date=2024-10-29");
+		expect(archiveCall).toContain("end_date=2026-10-28");
+		expect(
+			WeatherDayDTO.between(home.id, "2024-01-01", "2026-12-31").map((day) => [
+				day.date,
+				day.mean,
+			]),
+		).toEqual([
+			["2024-10-30", 8],
+			["2024-10-31", 9.2],
+			["2026-10-27", 4.6],
+		]);
+		WeatherDayDTO.forget(home.id);
+		await jobHandlers["weather.backfill"]({ homeId: home.id });
+		expect(WeatherDayDTO.latest(home.id)).not.toBeNull();
+		fetchMock.mockImplementation((() =>
+			Promise.resolve(
+				new Response("down", { status: 503 }),
+			)) as unknown as typeof fetch);
+		await expect(
+			jobHandlers["weather.backfill"]({ homeId: home.id }),
+		).rejects.toThrow("Open-Meteo answered 503.");
+		await jobHandlers["weather.backfill"]({ homeId: "gone" });
 	});
 
 	test("describes weather codes and clock times", () => {

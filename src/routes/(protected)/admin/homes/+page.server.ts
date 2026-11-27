@@ -110,6 +110,25 @@ export const actions = {
 		JobDTO.enqueue("weather.refresh", { homeId: id }, { maxAttempts: 1 });
 		return { saved: true };
 	},
+	pastWeather: async ({ locals, request }) => {
+		const admin = access.adminFrom(locals);
+		if (!("id" in admin)) {
+			return admin;
+		}
+		const parsed = parseForm(idSchema, await request.formData());
+		if (!parsed.success) {
+			return fail(400, { error: "Pick a home." });
+		}
+		const home = HomeDTO.find(parsed.data.id);
+		if (!home) {
+			return fail(404, { error: "That home is gone." });
+		}
+		if (!home.location) {
+			return fail(400, { error: "Set the home's location first." });
+		}
+		JobDTO.enqueue("weather.backfill", { homeId: home.id }, { maxAttempts: 3 });
+		return { queued: true };
+	},
 	unlocate: async ({ locals, request }) => {
 		const admin = access.adminFrom(locals);
 		if (!("id" in admin)) {

@@ -5,6 +5,7 @@
 	import MapPinOffIcon from "@lucide/svelte/icons/map-pin-off";
 	import PencilIcon from "@lucide/svelte/icons/pencil";
 	import PlusIcon from "@lucide/svelte/icons/plus";
+	import ThermometerIcon from "@lucide/svelte/icons/thermometer";
 	import Trash2Icon from "@lucide/svelte/icons/trash-2";
 
 	import LocationSheet from "#lib/components/house/location-sheet.svelte";
@@ -69,6 +70,17 @@
 							},
 							...(home.place
 								? [
+										{
+											label: "Record past weather",
+											icon: ThermometerIcon,
+											form: {
+												action: "?/pastWeather",
+												fields: { id: home.id },
+												loading: "Asking for past weather",
+												success:
+													"Fetching two years of temperatures: Energy shows them in a minute.",
+											},
+										},
 										{
 											label: "Clear the location",
 											icon: MapPinOffIcon,

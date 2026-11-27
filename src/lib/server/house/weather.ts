@@ -7,8 +7,12 @@ const logger = new Logger("Weather");
 
 const forecastUrl = "https://api.open-meteo.com/v1/forecast";
 const searchUrl = "https://geocoding-api.open-meteo.com/v1/search";
+const archiveUrl = "https://archive-api.open-meteo.com/v1/archive";
 const timeoutMs = 10_000;
 const pastDays = 92;
+const archiveDays = 730;
+const dailyFields =
+	"weather_code,temperature_2m_max,temperature_2m_min,temperature_2m_mean";
 const dayMs = 24 * 60 * 60_000;
 
 interface Forecast {
@@ -125,23 +129,45 @@ class WeatherService {
 		url.search = new URLSearchParams({
 			latitude: String(location.latitude),
 			longitude: String(location.longitude),
-			daily:
-				"weather_code,temperature_2m_max,temperature_2m_min,temperature_2m_mean",
+			daily: dailyFields,
 			timezone: location.timezone,
 			past_days: String(pastDays),
 			forecast_days: "1",
 		}).toString();
-		const { daily } = (await this.#get(url)) as Past;
-		return daily.time.slice(0, -1).flatMap((date, index) => {
-			const min = daily.temperature_2m_min[index];
-			const max = daily.temperature_2m_max[index];
-			const mean = daily.temperature_2m_mean[index];
-			return typeof min === "number" &&
-				typeof max === "number" &&
-				typeof mean === "number"
-				? [{ date, min, mean, max, code: daily.weather_code[index] ?? 3 }]
-				: [];
-		});
+		const body = (await this.#get(url)) as Past;
+		const today = body.daily.time.at(-1);
+		return this.#days(body).filter((entry) => entry.date !== today);
+	}
+
+	/**
+	 * Stores the outside temperatures of `home`'s last two years, as long as energy readings are kept: the archive, then
+	 * the last three months over it, since the archive runs a few days behind. Returns how many days it stored.
+	 *
+	 * @throws When `home` has no location or Open-Meteo can't be reached.
+	 */
+	async backfill(home: HomeDTO, now = new Date()): Promise<number> {
+		const location = home.location;
+		if (!location) {
+			throw new Error("Set the home's location first.");
+		}
+		const day = (back: number) =>
+			new Intl.DateTimeFormat("en-CA", { timeZone: location.timezone }).format(
+				new Date(now.getTime() - back * dayMs),
+			);
+		const url = new URL(archiveUrl);
+		url.search = new URLSearchParams({
+			latitude: String(location.latitude),
+			longitude: String(location.longitude),
+			daily: dailyFields,
+			timezone: location.timezone,
+			start_date: day(archiveDays),
+			end_date: day(1),
+		}).toString();
+		const archived = this.#days((await this.#get(url)) as Past);
+		const recent = await this.past(location);
+		WeatherDayDTO.record(home.id, archived);
+		WeatherDayDTO.record(home.id, recent);
+		return new Set([...archived, ...recent].map((entry) => entry.date)).size;
 	}
 
 	/**
@@ -164,6 +190,19 @@ class WeatherService {
 		} catch (error) {
 			logger.warn("Weather read failed", { home: home.id }, error);
 		}
+	}
+
+	#days({ daily }: Past): WeatherDay[] {
+		return daily.time.flatMap((date, index) => {
+			const min = daily.temperature_2m_min[index];
+			const max = daily.temperature_2m_max[index];
+			const mean = daily.temperature_2m_mean[index];
+			return typeof min === "number" &&
+				typeof max === "number" &&
+				typeof mean === "number"
+				? [{ date, min, mean, max, code: daily.weather_code[index] ?? 3 }]
+				: [];
+		});
 	}
 
 	async #get(url: URL): Promise<unknown> {

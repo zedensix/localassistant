@@ -77,6 +77,13 @@ export const jobHandlers: JobHandlers = {
 			await weatherService.refresh(home);
 		}
 	},
+	"weather.backfill": async ({ homeId }) => {
+		const home = HomeDTO.find(homeId);
+		if (home?.location) {
+			const stored = await weatherService.backfill(home);
+			logger.info("Recorded past weather", { home: homeId, days: stored });
+		}
+	},
 	"automations.tick": async () => {
 		const now = new Date();
 		JobDTO.enqueue(

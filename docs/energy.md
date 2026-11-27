@@ -9,6 +9,9 @@ outside temperature there from Open-Meteo: the last three months at once, then
 yesterday every morning. The daily chart draws the average as a line and its
 table gets a column, and the assistant reads them with the use to tell heating
 from habits. Moving the home forgets them and starts over from the new place.
+**Record past weather** in the home's menu on **Admin**, **Homes** fills the
+last two years at once from Open-Meteo's archive, as far back as energy readings
+go, so an instance that ran before this matches its old use too.
 
 The house is the whole-house meter when there is one (the ZLinky reader or a
 Linky online), the sum of the metered appliances otherwise. Appliances are the

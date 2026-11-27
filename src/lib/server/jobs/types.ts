@@ -8,6 +8,7 @@ export interface JobPayloads {
 	"devices.refresh": Record<string, never>;
 	"device.refresh": { deviceId: string };
 	"weather.refresh": { homeId?: string };
+	"weather.backfill": { homeId: string };
 	"automations.tick": Record<string, never>;
 	"automation.run": { automationId: string };
 	"presence.update": { userId: string };
