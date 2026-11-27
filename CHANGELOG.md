@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.15](https://github.com/zedensix/localassistant/compare/v1.0.14...v1.0.15) (2026-11-27)
+
+### Features
+
+* **weather:** record two years of past temperatures from the Homes menu ([1684f9d](https://github.com/zedensix/localassistant/commit/1684f9d064d041efd2fa051517c7871d787fb014))
+
 ## [1.0.14](https://github.com/zedensix/localassistant/compare/v1.0.13...v1.0.14) (2026-11-27)
 
 ### Features
