@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.14](https://github.com/zedensix/localassistant/compare/v1.0.13...v1.0.14) (2026-11-27)
+
+### Features
+
+* **assistant:** stored conversations with search and thinking, daily weather beside energy ([70e005b](https://github.com/zedensix/localassistant/commit/70e005bf9a5a1ed9d45a3a00cbf1225050b23224))
+
 ## [1.0.13](https://github.com/zedensix/localassistant/compare/v1.0.12...v1.0.13) (2026-11-27)
 
 ### Features
