@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.12](https://github.com/zedensix/localassistant/compare/v1.0.11...v1.0.12) (2026-11-27)
+
+### Bug Fixes
+
+* **linky:** fetch daily use again instead of renewing a stale cache, add check now and token link ([509564f](https://github.com/zedensix/localassistant/commit/509564f74568f83ae2ed449c537ee26fd3c4e46b))
+
 ## [1.0.11](https://github.com/zedensix/localassistant/compare/v1.0.10...v1.0.11) (2026-11-16)
 
 ## [1.0.10](https://github.com/zedensix/localassistant/compare/v1.0.9...v1.0.10) (2026-11-13)
