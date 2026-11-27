@@ -13,6 +13,8 @@ import Anthropic, {
 	RateLimitError,
 } from "@anthropic-ai/sdk";
 
+import { AssistantConversationDTO } from "#lib/dto/assistant-conversation.js";
+import { AssistantMessageDTO } from "#lib/dto/assistant-message.js";
 import { DeviceDTO } from "#lib/dto/device.js";
 import { HomeDTO } from "#lib/dto/home.js";
 import { SceneDTO } from "#lib/dto/scene.js";
@@ -27,7 +29,7 @@ import {
 	assistantTurnsSchema,
 } from "#lib/server/validation/assistant.js";
 
-import { homeId, resetDatabase } from "../../database.js";
+import { createUser, homeId, resetDatabase } from "../../database.js";
 
 type Reply = Partial<Anthropic.Beta.BetaMessage>;
 
@@ -76,12 +78,18 @@ describe("the assistant", () => {
 			{
 				stop_reason: "tool_use",
 				content: [
+					{
+						type: "thinking",
+						thinking: "Find the lamp first.",
+						signature: "s",
+					},
 					{ type: "tool_use", id: "a", name: "get_house", input: {} },
 				] as Anthropic.Beta.BetaContentBlock[],
 			},
 			{
 				stop_reason: "tool_use",
 				content: [
+					{ type: "thinking", thinking: " ", signature: "s" },
 					{
 						type: "tool_use",
 						id: "b",
@@ -107,6 +115,7 @@ describe("the assistant", () => {
 		]);
 		expect(reply).toEqual({
 			text: "The lamp is on.",
+			thinking: "Find the lamp first.",
 			actions: ["Turn Lamp on"],
 		});
 		expect(command).toHaveBeenCalledWith(expect.anything(), {
@@ -116,7 +125,12 @@ describe("the assistant", () => {
 		expect(requests[0]).toMatchObject({
 			model: "claude-opus-5-5",
 			fallbacks: "default",
+			thinking: { type: "adaptive", display: "summarized" },
 			output_config: { effort: "low" },
+		});
+		expect(requests[1]?.messages[1]).toMatchObject({
+			role: "assistant",
+			content: [{ type: "thinking", thinking: "Find the lamp first." }, {}],
 		});
 		expect(
 			requests[0]?.tools?.map((tool) => (tool as { name: string }).name),
@@ -253,6 +267,98 @@ describe("the assistant", () => {
 		command.mockRestore();
 	});
 
+	test("keeps each person's conversations, with the turns before as context and the thinking", async () => {
+		const home = HomeDTO.first();
+		createUser("ada");
+		createUser("bob", "Bob");
+		const answer = spyOn(assistant, "answer")
+			.mockResolvedValueOnce({
+				text: "38.96 kWh yesterday.",
+				thinking: "Read the energy.",
+				actions: [],
+			})
+			.mockResolvedValueOnce({
+				text: "The heat pump.",
+				thinking: null,
+				actions: ["Turn PAC off"],
+			});
+		const first = await assistant.converse(
+			home,
+			"ada",
+			undefined,
+			"How much   electricity did we use yesterday, and which days went up the most this month?",
+		);
+		const conversation = AssistantConversationDTO.find(
+			first.conversationId,
+			"ada",
+		);
+		expect(conversation?.title).toBe(
+			"How much electricity did we use yesterday, and which days w…",
+		);
+		await assistant.converse(home, "ada", first.conversationId, "Why?");
+		expect(answer.mock.calls[1]?.[1]).toEqual([
+			{
+				role: "user",
+				text: "How much   electricity did we use yesterday, and which days went up the most this month?",
+			},
+			{ role: "assistant", text: "38.96 kWh yesterday." },
+			{ role: "user", text: "Why?" },
+		]);
+		expect(
+			AssistantMessageDTO.inConversation(first.conversationId).map(
+				({ role, thinking, actions }) => ({ role, thinking, actions }),
+			),
+		).toEqual([
+			{ role: "user", thinking: null, actions: [] },
+			{ role: "assistant", thinking: "Read the energy.", actions: [] },
+			{ role: "user", thinking: null, actions: [] },
+			{ role: "assistant", thinking: null, actions: ["Turn PAC off"] },
+		]);
+		await expect(
+			assistant.converse(home, "bob", first.conversationId, "Hi"),
+		).rejects.toMatchObject({ status: 404 });
+		answer.mockRejectedValueOnce(new Error("down"));
+		await expect(
+			assistant.converse(home, "bob", undefined, "Hi"),
+		).rejects.toThrow("down");
+		expect(AssistantConversationDTO.forUser("bob")).toEqual([]);
+		answer.mockRestore();
+	});
+
+	test("finds a person's conversations by title or by anything said, newest first", () => {
+		createUser("ada");
+		createUser("bob", "Bob");
+		const heating = AssistantConversationDTO.create("ada", "Heating");
+		AssistantMessageDTO.add(heating.id, {
+			role: "assistant",
+			text: `${"x".repeat(80)} the HEAT PUMP ran all night ${"y".repeat(150)}`,
+		});
+		heating.touch(new Date("2026-11-01T00:00:00Z"));
+		const pump = AssistantConversationDTO.create("ada", "Heat pump settings");
+		pump.touch(new Date("2026-11-02T00:00:00Z"));
+		AssistantConversationDTO.create("bob", "Heat pump");
+		const hits = AssistantConversationDTO.search("ada", "heat pump");
+		expect(hits.map((hit) => hit.title)).toEqual([
+			"Heat pump settings",
+			"Heating",
+		]);
+		expect(hits[0]?.snippet).toBeNull();
+		expect(hits[1]?.snippet).toMatch(
+			/^…the HEAT PUMP ran all night y{60,100}…$/,
+		);
+		pump.rename("Pump");
+		expect(
+			AssistantConversationDTO.find(pump.id, "ada")?.toJSON(),
+		).toMatchObject({
+			title: "Pump",
+			updatedAt: new Date("2026-11-02T00:00:00Z"),
+		});
+		expect(AssistantConversationDTO.find(pump.id, "bob")).toBeUndefined();
+		heating.delete();
+		expect(AssistantMessageDTO.inConversation(heating.id)).toEqual([]);
+		expect(AssistantConversationDTO.search("ada", "night")).toEqual([]);
+	});
+
 	test("a request learns why it failed in words, never the API's own error", async () => {
 		const home = HomeDTO.first();
 		const turns = [{ role: "user" as const, text: "Hi" }];
@@ -271,9 +377,10 @@ describe("the assistant", () => {
 				status,
 			});
 		}
-		reply.mockResolvedValueOnce({ text: "Hello", actions: [] });
+		reply.mockResolvedValueOnce({ text: "Hello", thinking: null, actions: [] });
 		expect(await assistant.answer(home, turns)).toEqual({
 			text: "Hello",
+			thinking: null,
 			actions: [],
 		});
 	});

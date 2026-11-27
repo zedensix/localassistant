@@ -30,6 +30,13 @@
 	setPageTitle("Energy");
 
 	const report = $derived(data.energy);
+	const outside = $derived.by(() => {
+		if (report.range.unit !== "day" || report.weather.length === 0) {
+			return undefined;
+		}
+		const means = new Map(report.weather.map((day) => [day.date, day.mean]));
+		return report.house.buckets.map((bucket) => means.get(bucket.key) ?? null);
+	});
 	const period = $derived(rangeLabel(report.range));
 	const change = $derived(
 		report.house.previousTotal > 0
@@ -183,6 +190,7 @@
 			<EnergyBars
 				title="{period}{report.house.metered ? '' : ', metered appliances'}"
 				bars={bars(report.house.buckets)}
+				temperatures={outside}
 			/>
 		</section>
 

@@ -4,6 +4,12 @@
 30 days and per month over the last 12. The worker snapshots every meter's
 counter every 15 minutes and keeps about two years.
 
+Once the home has a place (**Admin**, **Homes**), the worker stores each day's
+outside temperature there from Open-Meteo: the last three months at once, then
+yesterday every morning. The daily chart draws the average as a line and its
+table gets a column, and the assistant reads them with the use to tell heating
+from habits. Moving the home forgets them and starts over from the new place.
+
 The house is the whole-house meter when there is one (the ZLinky reader or a
 Linky online), the sum of the metered appliances otherwise. Appliances are the
 metering plugs and Shelly meters.

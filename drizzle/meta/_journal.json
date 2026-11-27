@@ -211,6 +211,20 @@
       "when": 1793452463129,
       "tag": "0029_notification_inbox",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "6",
+      "when": 1795790738566,
+      "tag": "0030_assistant_conversations",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "6",
+      "when": 1795791177346,
+      "tag": "0031_weather_history",
+      "breakpoints": true
     }
   ]
 }

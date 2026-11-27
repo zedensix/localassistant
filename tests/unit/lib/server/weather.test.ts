@@ -10,6 +10,7 @@ import {
 
 import { HomeDTO } from "#lib/dto/home.js";
 import { JobDTO } from "#lib/dto/job.js";
+import { WeatherDayDTO } from "#lib/dto/weather-day.js";
 import { weatherService } from "#lib/server/house/weather.js";
 import { jobHandlers } from "#lib/server/jobs/handlers.js";
 import { clockTime, describeWeather } from "#lib/weather.js";
@@ -42,6 +43,16 @@ const forecast = {
 	},
 };
 
+const past = {
+	daily: {
+		time: ["2026-10-27", "2026-10-28", "2026-10-29"],
+		weather_code: [3, null, 2],
+		temperature_2m_max: [9, 11, 14],
+		temperature_2m_min: [1, null, 6],
+		temperature_2m_mean: [4.6, 7, 10],
+	},
+};
+
 let calls: string[] = [];
 
 function fakeOpenMeteo(input: string | URL | Request) {
@@ -64,7 +75,9 @@ function fakeOpenMeteo(input: string | URL | Request) {
 			}),
 		);
 	}
-	return Promise.resolve(Response.json(forecast));
+	return Promise.resolve(
+		Response.json(url.includes("past_days") ? past : forecast),
+	);
 }
 
 beforeEach(() => {
@@ -127,6 +140,30 @@ describe("weather", () => {
 			place: null,
 			weather: null,
 		});
+	});
+
+	test("stores each whole past day once a day, and forgets them when the home moves", async () => {
+		spyOn(globalThis, "fetch").mockImplementation(
+			fakeOpenMeteo as typeof fetch,
+		);
+		const home = HomeDTO.first();
+		home.locate(paris);
+		const now = new Date("2026-10-29T10:00:00Z");
+		await weatherService.refresh(home, now);
+		expect(calls.at(-1)).toContain("past_days=92");
+		expect(WeatherDayDTO.between(home.id, "2026-10-01", "2026-10-31")).toEqual([
+			{ date: "2026-10-27", min: 1, mean: 4.6, max: 9, code: 3 },
+		]);
+		WeatherDayDTO.record(home.id, [
+			{ date: "2026-10-28", min: 3, mean: 7, max: 11, code: 61 },
+		]);
+		calls = [];
+		await weatherService.refresh(home, now);
+		expect(calls.some((url) => url.includes("past_days"))).toBe(false);
+		await weatherService.refresh(home, new Date("2026-10-30T10:00:00Z"));
+		expect(calls.some((url) => url.includes("past_days"))).toBe(true);
+		WeatherDayDTO.forget(home.id);
+		expect(WeatherDayDTO.latest(home.id)).toBeNull();
 	});
 
 	test("describes weather codes and clock times", () => {

@@ -21,8 +21,9 @@ register on the fly; either way you approve each one.
   reading and whether it answers.
 - Read the electricity used over any span, the same numbers as **Energy**: the
   house per hour, day or month against the span before, the averages per weekday
-  and hour, and each metered appliance it may see. "Which days made my
-  consumption go up?" gets the days and the figures.
+  and hour, each metered appliance it may see, and the outside temperature of
+  each day. "Which days made my consumption go up?" gets the days, the figures
+  and how cold it was.
 - Open, close, stop or move a blind, or every blind in a room at once.
 - Turn a heat pump on or off, set its mode and temperature, boost the hot water.
 - Pause, resume or stop a print, and set the printer's light and speed. It's
@@ -46,7 +47,14 @@ LocalAssistant: ask what's on, who's home, or tell it to close the blinds or set
 a scene, or which days used the most electricity. It reads the house and its
 energy history and drives devices as the person asking, and says what it did
 under its answer. It also writes routines and scenes ("turn the porch light on
-at sunset on weekdays"), turns them on or off, runs and deletes them.
+at sunset on weekdays"), turns them on or off, runs and deletes them. Each
+answer can open a summary of how it thought it through.
+
+Conversations are kept per person, nobody else sees them: the sidebar (the
+conversations button on a phone) starts a new one, lists the others by day and
+searches their titles and everything said in them. Each is named after its first
+question; rename or delete one from its menu (long press on a phone). A
+conversation sends its last 40 turns as context.
 
 It runs on Claude through Anthropic's API, so an admin turns it on with an API
 key: make one at console.anthropic.com, then **Admin**, **AI**, **Claude API

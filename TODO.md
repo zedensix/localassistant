@@ -5,11 +5,15 @@ box while it's being worked on, and delete the entry once it's done.
 
 ## Small
 
-- [ ] The Linky online plugin reuses its last reading while `stateAt` is under
-      six hours old, but every poll saves that reading again and moves
-      `stateAt`, so it never fetches Enedis again after the first read.
+- [ ] The weather history only reaches three months back (Open-Meteo's
+      `past_days`): backfill the rest of the Linky's year from the archive API
+      so a winter can be compared with the last one.
 
 ## Medium
+
+- [ ] The native app's assistant still posts stateless turns to
+      `/api/v1/assistant`: give it the stored conversations, their search and
+      the thinking, like the web chat.
 
 - [ ] Python plugins only get the standard library in the image: support a
       `requirements` list in the manifest, installed into the plugin's folder.

@@ -1,11 +1,27 @@
-import { command, getRequestEvent } from "$app/server";
+import { command, getRequestEvent, query } from "$app/server";
 
+import { AssistantConversationDTO } from "#lib/dto/assistant-conversation.js";
 import { assistant } from "#lib/server/assistant/assistant.js";
 import { access } from "#lib/server/auth/access.js";
 import { homes } from "#lib/server/house/homes.js";
-import { assistantTurnsSchema } from "#lib/server/validation/assistant.js";
+import {
+	assistantQuestionSchema,
+	conversationSearchSchema,
+} from "#lib/server/validation/assistant.js";
 
-export const askAssistant = command(assistantTurnsSchema, ({ turns }) => {
-	access.requireUser();
-	return assistant.answer(homes.current(getRequestEvent().cookies), turns);
-});
+export const askAssistant = command(
+	assistantQuestionSchema,
+	({ conversationId, text }) => {
+		const user = access.requireUser();
+		return assistant.converse(
+			homes.current(getRequestEvent().cookies),
+			user.id,
+			conversationId,
+			text,
+		);
+	},
+);
+
+export const searchConversations = query(conversationSearchSchema, ({ term }) =>
+	AssistantConversationDTO.search(access.requireUser().id, term),
+);

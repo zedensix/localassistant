@@ -9,6 +9,7 @@ import {
 	uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 
+import { assistantRoles } from "#lib/assistant.js";
 import { cardSizes } from "#lib/devices.js";
 import type { RoomPlan } from "#lib/house.js";
 
@@ -496,6 +497,57 @@ export const scene = sqliteTable("scene", {
 	createdAt: createdAt(),
 	updatedAt: updatedAt(),
 });
+
+export const weatherDay = sqliteTable(
+	"weather_day",
+	{
+		homeId: text("home_id")
+			.notNull()
+			.references(() => home.id, { onDelete: "cascade" }),
+		date: text("date").notNull(),
+		min: real("min").notNull(),
+		mean: real("mean").notNull(),
+		max: real("max").notNull(),
+		code: integer("code").notNull(),
+	},
+	(table) => [primaryKey({ columns: [table.homeId, table.date] })],
+);
+
+export const assistantConversation = sqliteTable(
+	"assistant_conversation",
+	{
+		id: text("id")
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		title: text("title").notNull(),
+		createdAt: createdAt(),
+		updatedAt: updatedAt(),
+	},
+	(table) => [
+		index("assistant_conversation_user_idx").on(table.userId, table.updatedAt),
+	],
+);
+
+export const assistantMessage = sqliteTable(
+	"assistant_message",
+	{
+		id: integer("id").primaryKey({ autoIncrement: true }),
+		conversationId: text("conversation_id")
+			.notNull()
+			.references(() => assistantConversation.id, { onDelete: "cascade" }),
+		role: text("role", { enum: assistantRoles }).notNull(),
+		text: text("text").notNull(),
+		thinking: text("thinking"),
+		actions: text("actions", { mode: "json" }),
+		createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+	},
+	(table) => [
+		index("assistant_message_conversation_idx").on(table.conversationId),
+	],
+);
 
 export const jwks = sqliteTable("jwks", {
 	id: text("id").primaryKey(),

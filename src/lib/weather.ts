@@ -7,6 +7,14 @@ export interface DayForecast {
 	sunset: string;
 }
 
+export interface WeatherDay {
+	date: string;
+	min: number;
+	mean: number;
+	max: number;
+	code: number;
+}
+
 export interface Weather {
 	temperature: number;
 	feelsLike: number | null;

@@ -1,5 +1,6 @@
 import { DeviceDTO } from "#lib/dto/device.js";
 import { EnergyReadingDTO } from "#lib/dto/energy-reading.js";
+import { WeatherDayDTO } from "#lib/dto/weather-day.js";
 import type {
 	EnergyBucket,
 	EnergyPreset,
@@ -115,6 +116,7 @@ class Energy {
 		);
 		return {
 			range,
+			weather: WeatherDayDTO.between(homeId, range.from, range.to),
 			today,
 			months: first ? this.#months(first, today) : [],
 			house: {

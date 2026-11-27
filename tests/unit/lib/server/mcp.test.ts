@@ -9,6 +9,7 @@ import { JobDTO } from "#lib/dto/job.js";
 import { RoomDTO } from "#lib/dto/room.js";
 import { SceneDTO } from "#lib/dto/scene.js";
 import { setSetting } from "#lib/dto/setting.js";
+import { WeatherDayDTO } from "#lib/dto/weather-day.js";
 import { devices } from "#lib/server/devices/devices.js";
 import { mcpEndpoint } from "#lib/server/mcp/server.js";
 
@@ -112,11 +113,16 @@ describe("MCP tools", () => {
 				total / 10,
 			);
 		}
+		WeatherDayDTO.record(homeId(), [
+			{ date: "2026-10-20", min: 0, mean: 1, max: 2, code: 3 },
+			{ date: "2026-10-26", min: 2, mean: 5.5, max: 9, code: 61 },
+		]);
 		const span = { from: "2026-10-24", to: "2026-10-27" };
 		const report = JSON.parse((await call("get_energy", span)).text) as {
 			range: { unit: string };
 			house: { metered: boolean; total: number; buckets: unknown[] };
 			averagePerWeekday: Record<string, number>;
+			outside: unknown[];
 			appliances: { name: string; total: number }[];
 		};
 		expect(report.range.unit).toBe("day");
@@ -127,6 +133,9 @@ describe("MCP tools", () => {
 		]);
 		expect(report.house.total).toBe(21);
 		expect(Object.keys(report.averagePerWeekday)).toHaveLength(7);
+		expect(report.outside).toEqual([
+			{ date: "2026-10-26", min: 2, mean: 5.5, max: 9 },
+		]);
 		expect(report.appliances).toEqual([
 			expect.objectContaining({ name: "Dryer", total: 2.1 }),
 		]);

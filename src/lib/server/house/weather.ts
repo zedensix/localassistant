@@ -1,12 +1,15 @@
 import type { HomeDTO, HomeLocation } from "#lib/dto/home.js";
+import { WeatherDayDTO } from "#lib/dto/weather-day.js";
 import { Logger } from "#lib/server/core/logger.js";
-import type { Weather } from "#lib/weather.js";
+import type { Weather, WeatherDay } from "#lib/weather.js";
 
 const logger = new Logger("Weather");
 
 const forecastUrl = "https://api.open-meteo.com/v1/forecast";
 const searchUrl = "https://geocoding-api.open-meteo.com/v1/search";
 const timeoutMs = 10_000;
+const pastDays = 92;
+const dayMs = 24 * 60 * 60_000;
 
 interface Forecast {
 	utc_offset_seconds: number;
@@ -24,6 +27,16 @@ interface Forecast {
 		temperature_2m_min: number[];
 		sunrise: string[];
 		sunset: string[];
+	};
+}
+
+interface Past {
+	daily: {
+		time: string[];
+		weather_code: (number | null)[];
+		temperature_2m_max: (number | null)[];
+		temperature_2m_min: (number | null)[];
+		temperature_2m_mean: (number | null)[];
 	};
 }
 
@@ -101,14 +114,53 @@ class WeatherService {
 		};
 	}
 
-	/** Reads the weather of `home` and records it; never throws, a failed read keeps the last one. */
-	async refresh(home: HomeDTO): Promise<void> {
+	/**
+	 * The outside temperatures of each whole local day where `location` is, over the last three months, oldest first;
+	 * today, unfinished, is left out.
+	 *
+	 * @throws When Open-Meteo can't be reached.
+	 */
+	async past(location: HomeLocation): Promise<WeatherDay[]> {
+		const url = new URL(forecastUrl);
+		url.search = new URLSearchParams({
+			latitude: String(location.latitude),
+			longitude: String(location.longitude),
+			daily:
+				"weather_code,temperature_2m_max,temperature_2m_min,temperature_2m_mean",
+			timezone: location.timezone,
+			past_days: String(pastDays),
+			forecast_days: "1",
+		}).toString();
+		const { daily } = (await this.#get(url)) as Past;
+		return daily.time.slice(0, -1).flatMap((date, index) => {
+			const min = daily.temperature_2m_min[index];
+			const max = daily.temperature_2m_max[index];
+			const mean = daily.temperature_2m_mean[index];
+			return typeof min === "number" &&
+				typeof max === "number" &&
+				typeof mean === "number"
+				? [{ date, min, mean, max, code: daily.weather_code[index] ?? 3 }]
+				: [];
+		});
+	}
+
+	/**
+	 * Reads the weather of `home` and records it, and the past days' temperatures when yesterday isn't stored yet; never
+	 * throws, a failed read keeps what was there.
+	 */
+	async refresh(home: HomeDTO, now = new Date()): Promise<void> {
 		const location = home.location;
 		if (!location) {
 			return;
 		}
 		try {
 			home.saveWeather(await this.forecast(location));
+			const yesterday = new Intl.DateTimeFormat("en-CA", {
+				timeZone: location.timezone,
+			}).format(new Date(now.getTime() - dayMs));
+			if ((WeatherDayDTO.latest(home.id) ?? "") < yesterday) {
+				WeatherDayDTO.record(home.id, await this.past(location));
+			}
 		} catch (error) {
 			logger.warn("Weather read failed", { home: home.id }, error);
 		}

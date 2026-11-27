@@ -4,6 +4,7 @@ import { z } from "zod";
 import { HomeDTO } from "#lib/dto/home.js";
 import { JobDTO } from "#lib/dto/job.js";
 import { getSetting, setSetting } from "#lib/dto/setting.js";
+import { WeatherDayDTO } from "#lib/dto/weather-day.js";
 import { access } from "#lib/server/auth/access.js";
 import { idSchema, parseForm } from "#lib/server/validation/form.js";
 
@@ -105,6 +106,7 @@ export const actions = {
 			return fail(404, { error: "That home is gone." });
 		}
 		home.locate(location);
+		WeatherDayDTO.forget(home.id);
 		JobDTO.enqueue("weather.refresh", { homeId: id }, { maxAttempts: 1 });
 		return { saved: true };
 	},
@@ -122,6 +124,7 @@ export const actions = {
 			return fail(404, { error: "That home is gone." });
 		}
 		home.locate(null);
+		WeatherDayDTO.forget(home.id);
 		return { saved: true };
 	},
 	remove: async ({ locals, request }) => {

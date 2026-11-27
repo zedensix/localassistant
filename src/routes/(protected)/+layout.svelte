@@ -20,7 +20,9 @@
 	provideSheets();
 
 	const panel = $derived(page.route.id === "/(protected)/panel");
-	const chat = $derived(page.route.id === "/(protected)/assistant");
+	const chat = $derived(
+		page.route.id?.startsWith("/(protected)/assistant") ?? false,
+	);
 </script>
 
 {#if panel}

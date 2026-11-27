@@ -1,3 +1,5 @@
+import type { WeatherDay } from "#lib/weather.js";
+
 export const energyPresets = [
 	"today",
 	"yesterday",
@@ -51,6 +53,7 @@ export interface EnergyRange {
 
 export interface EnergyReport {
 	range: EnergyRange;
+	weather: WeatherDay[];
 	today: string;
 	months: string[];
 	house: {

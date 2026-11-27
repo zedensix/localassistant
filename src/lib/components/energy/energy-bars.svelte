@@ -9,16 +9,18 @@
 		title: string;
 		bars: Bar[];
 		unit?: string;
+		temperatures?: (number | null)[];
 	}
 
-	const { title, bars, unit = "kWh" }: Props = $props();
+	const { title, bars, unit = "kWh", temperatures }: Props = $props();
 
 	const height = 160;
 	const top = 12;
 	const bottom = 22;
 	const left = 36;
+	const right = $derived(temperatures ? 32 : 0);
 	let width = $state(600);
-	const slot = $derived((width - left) / Math.max(bars.length, 1));
+	const slot = $derived((width - left - right) / Math.max(bars.length, 1));
 	const barWidth = $derived(Math.max(2, Math.min(24, slot - 2)));
 
 	let hovered = $state<number | null>(null);
@@ -47,6 +49,27 @@
 				});
 	const labelEvery = $derived(Math.max(1, Math.ceil(bars.length / 8)));
 
+	const known = $derived(
+		(temperatures ?? []).filter((value): value is number => value !== null),
+	);
+	const coldest = $derived(Math.floor(Math.min(...known, 0) / 5) * 5);
+	const warmest = $derived(
+		Math.max(coldest + 5, Math.ceil(Math.max(...known, 0) / 5) * 5),
+	);
+	const temperatureY = (value: number) =>
+		top + plotHeight - ((value - coldest) / (warmest - coldest)) * plotHeight;
+	const temperatureLine = $derived(
+		(temperatures ?? [])
+			.flatMap((value, index) =>
+				value === null
+					? []
+					: [`${left + index * slot + slot / 2},${temperatureY(value)}`],
+			)
+			.join(" "),
+	);
+	const degrees = (value: number) =>
+		`${value.toLocaleString(undefined, { maximumFractionDigits: 1 })} °C`;
+
 	function columnPath(index: number, value: number): string {
 		const x = left + index * slot + (slot - barWidth) / 2;
 		const yTop = y(value);
@@ -72,14 +95,24 @@
 				<tr
 					><th class="py-1 font-medium">When</th><th
 						class="py-1 text-right font-medium">{unit}</th
-					></tr
+					>{#if temperatures}<th class="py-1 text-right font-medium"
+							>Outside, average</th
+						>{/if}</tr
 				>
 			</thead>
 			<tbody>
-				{#each bars as bar (bar.key)}
+				{#each bars as bar, index (bar.key)}
 					<tr class="border-border border-t">
 						<td class="py-1">{bar.label}</td>
 						<td class="py-1 text-right tabular-nums">{format(bar.value)}</td>
+						{#if temperatures}
+							{@const temperature = temperatures[index]}
+							<td class="py-1 text-right tabular-nums"
+								>{temperature === null || temperature === undefined
+									? "–"
+									: degrees(temperature)}</td
+							>
+						{/if}
 					</tr>
 				{/each}
 			</tbody>
@@ -90,12 +123,14 @@
 				viewBox="0 0 {width} {height}"
 				class="block h-40 w-full"
 				role="img"
-				aria-label="{title}, one bar each"
+				aria-label="{title}, one bar each{temperatures
+					? ', with the outside temperature as a line'
+					: ''}"
 			>
 				{#each ticks as tick (tick)}
 					<line
 						x1={left}
-						x2={width}
+						x2={width - right}
 						y1={y(tick)}
 						y2={y(tick)}
 						class="stroke-border"
@@ -109,6 +144,17 @@
 						class="fill-muted-foreground text-[10px]">{format(tick)}</text
 					>
 				{/each}
+				{#if temperatures && known.length > 0}
+					{#each [coldest, warmest] as tick (tick)}
+						<text
+							x={width}
+							y={temperatureY(tick)}
+							dy="0.32em"
+							text-anchor="end"
+							class="fill-chart-3 text-[10px]">{tick}°</text
+						>
+					{/each}
+				{/if}
 				{#each bars as bar, index (bar.key)}
 					{#if bar.value > 0}
 						<path
@@ -138,6 +184,16 @@
 						>
 					{/if}
 				{/each}
+				{#if temperatureLine}
+					<polyline
+						points={temperatureLine}
+						fill="none"
+						class="stroke-chart-3 pointer-events-none"
+						stroke-width="2"
+						stroke-linejoin="round"
+						stroke-linecap="round"
+					/>
+				{/if}
 			</svg>
 			{#if hovered !== null && focused}
 				<p
@@ -149,6 +205,11 @@
 					<span class="font-semibold tabular-nums"
 						>{format(focused.value)} {unit}</span
 					>
+					{#if temperatures?.[hovered] !== null && temperatures?.[hovered] !== undefined}
+						<span class="text-chart-3 tabular-nums"
+							>, {degrees(temperatures[hovered] ?? 0)} outside</span
+						>
+					{/if}
 				</p>
 			{/if}
 		</div>

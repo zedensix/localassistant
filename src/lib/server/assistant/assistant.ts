@@ -7,6 +7,8 @@ import { z } from "zod";
 
 import type { AssistantTurn } from "#lib/assistant.js";
 import { describeCommand } from "#lib/automations.js";
+import { AssistantConversationDTO } from "#lib/dto/assistant-conversation.js";
+import { AssistantMessageDTO } from "#lib/dto/assistant-message.js";
 import { AutomationDTO } from "#lib/dto/automation.js";
 import { DeviceDTO } from "#lib/dto/device.js";
 import type { HomeDTO } from "#lib/dto/home.js";
@@ -29,6 +31,8 @@ import { sceneSchema } from "#lib/server/validation/scene.js";
 const logger = new Logger("Assistant");
 const model = "claude-opus-5-5";
 const longestLoop = 8;
+const contextTurns = 40;
+const longestTitle = 60;
 
 const instructions = `You are the assistant built into LocalAssistant, a self-hosted smart home app for one household. You talk with a person signed in to it.
 Answer from the house as get_house reports it, never from guesses: call it before talking about devices, rooms or scenes. get_house only has the last reading: for electricity over time (which days used more, this month against last, what uses the most), call get_energy, compare its buckets with the span before and the appliances, and name the days and figures. To change something, call control_device or set_scene, then say in one short sentence what you did, or what failed and why.
@@ -126,6 +130,7 @@ const tools: Anthropic.Beta.BetaTool[] = [
 
 export interface AssistantReply {
 	text: string;
+	thinking: string | null;
 	actions: string[];
 }
 
@@ -188,7 +193,46 @@ class Assistant {
 	}
 
 	/**
-	 * Answers the last turn of `history` in `home`, running the tools it asks for; returns its reply and what it did.
+	 * Answers `text` in `userId`'s conversation `conversationId`, or in a new one titled after it, with the turns before
+	 * as context, and stores the question and the answer once answered; returns the conversation and the answer.
+	 *
+	 * @throws A 404 error when the conversation isn't theirs, else as `answer`.
+	 */
+	async converse(
+		home: HomeDTO,
+		userId: string,
+		conversationId: string | undefined,
+		text: string,
+	): Promise<AssistantReply & { conversationId: string }> {
+		const existing =
+			conversationId === undefined
+				? undefined
+				: AssistantConversationDTO.find(conversationId, userId);
+		if (conversationId !== undefined && !existing) {
+			error(404, "That conversation is gone.");
+		}
+		const earlier = existing
+			? AssistantMessageDTO.inConversation(existing.id)
+					.slice(-contextTurns)
+					.map(({ role, text: said }) => ({ role, text: said }))
+			: [];
+		const reply = await this.answer(home, [...earlier, { role: "user", text }]);
+		const conversation =
+			existing ?? AssistantConversationDTO.create(userId, this.#title(text));
+		AssistantMessageDTO.add(conversation.id, { role: "user", text });
+		AssistantMessageDTO.add(conversation.id, {
+			role: "assistant",
+			text: reply.text,
+			thinking: reply.thinking,
+			actions: reply.actions,
+		});
+		conversation.touch();
+		return { conversationId: conversation.id, ...reply };
+	}
+
+	/**
+	 * Answers the last turn of `history` in `home`, running the tools it asks for; returns its reply, a summary of its
+	 * thinking and what it did.
 	 *
 	 * @throws When no key is saved, or the Claude API refuses or can't be reached.
 	 */
@@ -202,26 +246,42 @@ class Assistant {
 			content: turn.text,
 		}));
 		const actions: string[] = [];
+		const thoughts: string[] = [];
+		const thinking = () => thoughts.join("\n\n").trim() || null;
 		for (let step = 0; step < longestLoop; step += 1) {
 			const response = await client.beta.messages.create({
 				model,
 				max_tokens: 16_000,
 				betas: ["server-side-fallback-2026-07-01"],
 				fallbacks: "default",
+				thinking: { type: "adaptive", display: "summarized" },
 				output_config: { effort: "low" },
 				system: instructions,
 				tools,
 				messages,
 			});
+			for (const block of response.content) {
+				if (block.type === "thinking" && block.thinking.trim()) {
+					thoughts.push(block.thinking.trim());
+				}
+			}
 			if (response.stop_reason === "refusal") {
-				return { text: "I can't help with that one.", actions };
+				return {
+					text: "I can't help with that one.",
+					thinking: thinking(),
+					actions,
+				};
 			}
 			const calls = response.content.filter(
 				(block): block is Anthropic.Beta.BetaToolUseBlock =>
 					block.type === "tool_use",
 			);
 			if (response.stop_reason !== "tool_use" || calls.length === 0) {
-				return { text: this.#text(response.content), actions };
+				return {
+					text: this.#text(response.content),
+					thinking: thinking(),
+					actions,
+				};
 			}
 			messages.push({ role: "assistant", content: response.content });
 			const results: Anthropic.Beta.BetaToolResultBlockParam[] = [];
@@ -241,6 +301,7 @@ class Assistant {
 		}
 		return {
 			text: "That took too many steps. Try asking for one thing at a time.",
+			thinking: thinking(),
 			actions,
 		};
 	}
@@ -379,6 +440,13 @@ class Assistant {
 			};
 		}
 		return { content: `There's no tool called ${name}.`, error: true };
+	}
+
+	#title(text: string): string {
+		const line = text.replaceAll(/\s+/g, " ").trim();
+		return line.length > longestTitle
+			? `${line.slice(0, longestTitle - 1).trimEnd()}…`
+			: line;
 	}
 
 	#text(content: Anthropic.Beta.BetaContentBlock[]): string {
