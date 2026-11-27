@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.13](https://github.com/zedensix/localassistant/compare/v1.0.12...v1.0.13) (2026-11-27)
+
+### Features
+
+* **assistant:** read energy history through a get_energy tool, in the app and over MCP ([05b88f2](https://github.com/zedensix/localassistant/commit/05b88f2fc9866e6f45de4937db1c973a18b8bb07))
+
 ## [1.0.12](https://github.com/zedensix/localassistant/compare/v1.0.11...v1.0.12) (2026-11-27)
 
 ### Bug Fixes
