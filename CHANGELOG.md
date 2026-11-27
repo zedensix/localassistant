@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.0.16](https://github.com/zedensix/localassistant/compare/v1.0.15...v1.0.16) (2026-11-27)
+
+### Features
+
+* **assistant:** know who is asking and list the household's accounts for notifications ([ba744ae](https://github.com/zedensix/localassistant/commit/ba744ae4548e2e98f72aaea5c6813cab513d22c2))
+
+### Bug Fixes
+
+* **bambu:** keep light and speed changes and stop commands hanging, energy totals in routine notifications ([781c3f3](https://github.com/zedensix/localassistant/commit/781c3f39694020fd2bc995b5055da001efd76d7d))
+
 ## [1.0.15](https://github.com/zedensix/localassistant/compare/v1.0.14...v1.0.15) (2026-11-27)
 
 ### Features
